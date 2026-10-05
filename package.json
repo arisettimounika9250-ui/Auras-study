@@ -1,0 +1,13 @@
+{
+  "name": "aurastudy",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node dev.mjs",
+    "build": "npm run build --prefix frontend",
+    "start": "node backend/src/app.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

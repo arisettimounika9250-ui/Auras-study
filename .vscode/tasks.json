@@ -1,0 +1,58 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start AuraStudy API",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"--prefix",
+				"backend",
+				"run",
+				"dev"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start AuraStudy frontend",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"--prefix",
+				"frontend",
+				"run",
+				"dev",
+				"--",
+				"--host",
+				"127.0.0.1"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check Atlas DNS resolution",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"-e",
+				"require('node:dns').promises.resolveSrv('_mongodb._tcp.cluster0.gsits7f.mongodb.net').then(records => console.log(JSON.stringify({resolved: true, hosts: records.map(({name, port}) => ({name, port}))}))).catch(error => console.log(JSON.stringify({resolved: false, code: error.code, syscall: error.syscall, hostname: error.hostname})))"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Build AuraStudy frontend",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"build",
+				"--prefix",
+				"frontend"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

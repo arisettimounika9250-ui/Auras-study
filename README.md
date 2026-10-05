@@ -36,6 +36,10 @@ The frontend runs at `http://localhost:5173`; the API runs at `http://localhost:
 
 For MongoDB Atlas, make sure the cluster is running, add your current public IP under **Security → Network Access**, and verify the database user's credentials in `backend/.env`. URL-encode special characters in the username or password used in `MONGODB_URI`. If the API cannot connect, `/api/health` and API requests return HTTP `503` with code `DATABASE_UNAVAILABLE` and troubleshooting guidance.
 
+## Deploy to Vercel
+
+Import the repository into Vercel with the repository root as the project root. The included `vercel.json` builds the frontend into `frontend/dist`, serves it at the site root, and sends `/api/*` requests to the Express function. Configure `MONGODB_URI` and a random `JWT_SECRET` (at least 32 characters) in the Vercel project environment variables for every deployment environment, then redeploy. Ensure your MongoDB deployment accepts connections from the Vercel function.
+
 In the app, open **Subjects** and use **Add topics for all groups** to add general starter subjects and Easy, Medium, and Hard topics for CSE, ECE, EEE, MECH, CIVIL, CSE (AI&DS), and Other. You can add just one selected group instead. Existing matching subjects and topics are reused, and previous starter topics have their difficulty levels updated. On a subject page, choose **Suggest topics with AI** to review AI suggestions before adding them. Starter topics are not an official university syllabus; review them against your course.
 
 ## Optional AI providers

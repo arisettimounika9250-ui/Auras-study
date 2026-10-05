@@ -40,8 +40,16 @@ const safeUser = user => ({ id:user._id, name:user.name, email:user.email, avata
 const own = async (Model,id,userId) => Model.findOne({ _id:id, user:userId });
 const authLimiter = rateLimit({ windowMs:15*60_000, limit:10, standardHeaders:true, legacyHeaders:false, message:{success:false,message:'Too many authentication attempts. Please wait 15 minutes and try again.'} });
 
-app.get('/api/health',(req,res)=>{const connected=mongoose.connection.readyState===1;return connected?res.status(200).json({success:true,data:{status:'ok',database:'connected'}}):databaseUnavailable(res);});
-app.use('/api',(req,res,next)=>{if(mongoose.connection.readyState!==1)return databaseUnavailable(res);next();});
+app.use('/api',asyncRoute(async(req,res,next)=>{
+  try {
+    await ensureDatabaseConnected();
+    next();
+  } catch(err) {
+    console.error('MongoDB connection failed:',err.name,err.message);
+    return databaseUnavailable(res);
+  }
+}));
+app.get('/api/health',(req,res)=>res.status(200).json({success:true,data:{status:'ok',database:'connected'}}));
 app.post('/api/auth/register',authLimiter,asyncRoute(async(req,res)=>{ const {name,email,password,confirmPassword}=req.body; if(typeof name!=='string'||!name.trim()||typeof email!=='string'||!email.trim()||typeof password!=='string'||!password) return fail(res,400,'Name, email, and password are required.'); if(password.length<12) return fail(res,400,'Password must be at least 12 characters.'); if(confirmPassword!==undefined&&password!==confirmPassword) return fail(res,400,'Passwords do not match.'); if(await User.exists({email:email.toLowerCase().trim()})) return fail(res,409,'An account with this email already exists.'); const user=await User.create({name:name.trim(),email:email.toLowerCase().trim(),password:await bcrypt.hash(password,12)}); return ok(res,{user:safeUser(user),token:tokenFor(user)},201); }));
 app.post('/api/auth/login',authLimiter,asyncRoute(async(req,res)=>{ if(typeof req.body.email!=='string'||typeof req.body.password!=='string') return fail(res,400,'Email and password are required.'); const user=await User.findOne({email:req.body.email.toLowerCase().trim()}).select('+password'); if(!user||!await bcrypt.compare(req.body.password,user.password)) return fail(res,401,'Email or password is incorrect.'); return ok(res,{user:safeUser(user),token:tokenFor(user)}); }));
 app.get('/api/auth/me',auth,(req,res)=>ok(res,{user:safeUser(req.user)}));
@@ -90,13 +98,22 @@ app.get('/api/analytics/quizzes',auth,asyncRoute(async(req,res)=>{const [subject
 app.get('/api/history',auth,asyncRoute(async(req,res)=>{const {activity,subject,from,to}=req.query;const range={user:req.user.id,...(subject?{subject}:{}),...((from||to)?{startedAt:{...(from?{$gte:new Date(from)}:{}),...(to?{$lte:new Date(to)}:{})}}:{})};const [sessions,quizzes,tasks]=await Promise.all([activity&&activity!=='session'?[]:StudySession.find(range).populate('subject','name').sort({startedAt:-1}).limit(200),activity&&activity!=='quiz'?[]:Quiz.find({user:req.user.id,...(subject?{subject}:{}),...((from||to)?{createdAt:{...(from?{$gte:new Date(from)}:{}),...(to?{$lte:new Date(to)}:{})}}:{})}).populate('subject','name').sort({createdAt:-1}).limit(200),activity&&activity!=='task'?[]:Task.find({user:req.user.id,status:'Completed',...(subject?{subject}:{}),...((from||to)?{updatedAt:{...(from?{$gte:new Date(from)}:{}),...(to?{$lte:new Date(to)}:{})}}:{})}).populate('subject','name').sort({updatedAt:-1}).limit(200)]);ok(res,{sessions,quizzes,tasks});}));
 app.use((req,res)=>fail(res,404,'That endpoint does not exist.'));
 app.use((err,req,res,next)=>{console.error('API request failed:',err.name,err.message);if(err.code===11000)return fail(res,409,'An account with this email already exists.');if(err.name==='ValidationError')return fail(res,400,'Please check the information you entered.');if(err.name==='CastError')return fail(res,400,'Invalid resource identifier.');if(isDatabaseConnectivityError(err)||mongoose.connection.readyState!==1)return databaseUnavailable(res);return fail(res,500,'Something went wrong. Please try again.');});
-const port=Number(process.env.PORT)||4000;
-app.listen(port,()=>console.log(`AuraStudy API listening on ${port}`));
 const mongoUri=process.env.MONGODB_URI||'mongodb://127.0.0.1:27017/aurastudy';
+let databaseConnection;
 let reconnectDelay=5000;
+async function ensureDatabaseConnected() {
+  if (mongoose.connection.readyState===1) return;
+  if (!databaseConnection) {
+    databaseConnection=mongoose.connect(mongoUri,{dbName:'aurastudy'}).catch(err=>{
+      databaseConnection=null;
+      throw err;
+    });
+  }
+  await databaseConnection;
+}
 async function connectToDatabase() {
   try {
-    await mongoose.connect(mongoUri, { dbName:'aurastudy' });
+    await ensureDatabaseConnected();
     reconnectDelay=5000;
     console.log('MongoDB connected.');
   } catch(err) {
@@ -107,4 +124,10 @@ async function connectToDatabase() {
     setTimeout(connectToDatabase,retryAfter).unref();
   }
 }
-connectToDatabase();
+if (process.env.VERCEL !== '1') {
+  const port=Number(process.env.PORT)||4000;
+  app.listen(port,()=>console.log(`AuraStudy API listening on ${port}`));
+  connectToDatabase();
+}
+
+export default app;
